@@ -1,0 +1,26 @@
+version: "3.8"
+
+services:
+  postgis:
+    container_name: postgis_ssurgo
+    restart: always
+    image: postgis/postgis:14-master
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: $DATABASE_USERNAME
+      POSTGRES_PASSWORD: $DATABASE_PASSWORD
+      POSTGRES_DB: $DATABASE_NAME
+    volumes:
+      - ./db_scripts/:/docker-entrypoint-initdb.d
+      - ./db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U postgres -d postgres
+      interval: 5s
+      timeout: 2s
+      retries: 3
+    sysctls:
+      net.core.somaxconn: 65536
+    ports:
+      - "5432:5432"
+
