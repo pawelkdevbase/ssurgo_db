@@ -110,11 +110,10 @@ def calc_slope(val):
 
 def calc_conditions(row):
     out = 0
-    if 'channeled' == row.localphase:
+    if 'channeled' in str(row.localphase):
         out += 40
-    if row.erocl is not None:
-        if 'Class 2' in row.erocl:
-            out += 3
+    if 'Class 2' in str(row.erocl):
+        out += 3
     return out
 
 

@@ -165,15 +165,20 @@ def load_tables(dbf: str, state: str) -> None:
 def load_complete_ssurgo() -> None:
     if not os.path.isdir(config.DOWNLOAD_FOLDER):
         os.mkdir(config.DOWNLOAD_FOLDER)
+    utils.log_event('Start downloading SSURGO databases')
     download_ssurgo()  # download all states at once
     for st in config.STATES:
-        dbf = os.path.join(config.DOWNLOAD_FOLDER, f'gSSURGO_{st}.zip')
-        if not os.path.isdir(dbf.replace('zip', 'gdf')):
-            with ZipFile(dbf, 'r') as zf:
-                zf.extractall(config.DOWNLOAD_FOLDER)
+        dbz = os.path.join(config.DOWNLOAD_FOLDER, f'gSSURGO_{st}.zip')
         dbf = os.path.join(config.DOWNLOAD_FOLDER, f'gSSURGO_{st}.gdb')
+        if not os.path.isdir(dbf):
+            if not os.path.isfile(dbz):
+                utils.log_event(f'Didn\'t find zip SSURGO for state: {st}')
+                continue
+            with ZipFile(dbz, 'r') as zf:
+                zf.extractall(config.DOWNLOAD_FOLDER)
         load_mupolygon(dbf, st)
         load_aggreg(dbf, st)
+        load_tables(dbf, st)
         if st == 'IA':
             df = process_csr2(dbf)
             with db.sync_session() as session:
@@ -183,14 +188,12 @@ def load_complete_ssurgo() -> None:
                     schema='ssurgo', if_exists='append', chunksize=400,
                     index=False
                 )
-        shutil.rmtree(dbf[:-3]+'gdb')  # delete gdb
-        os.remove(dbf)  # delete zip
+        shutil.rmtree(dbf)  # delete gdb
+        os.remove(dbz)  # delete zip
 
 
 if __name__ == '__main__':
     load_complete_ssurgo()
-
-
 
 #     # this is example how to deploy only few states, if You need entire dataset
 #     # simply run load_complete_ssurgo() - all USA will be processed

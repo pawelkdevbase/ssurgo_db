@@ -1,5 +1,6 @@
 import os
 import requests
+import glob
 import lxml.html as lx
 import json
 from soil_scripts import utils
@@ -30,7 +31,7 @@ def json_with_files(pg: int) -> dict:
     itry = 0
     while itry < 4:
         try:
-            r = session.get(list_url.format(pg) ) #  , headers=headers)
+            r = session.get(list_url.format(pg))  # , headers=headers)
             itry = 7
         except Exception:
             itry += 1
@@ -62,8 +63,11 @@ def download_file(fl_tab: list) -> bool:
     flname = fl_tab[0]
     flurl = fl_tab[1]
 
+    utils.log_event(f'Start dowloading SSURGO db: {flname}')
+
     file_path = os.path.join(DOWNLOAD_FOLDER, flname)
     if os.path.isfile(file_path):
+        utils.log_event(f'Downloaded {flname}')
         return True
     headers = {
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:101.0) "
@@ -80,10 +84,11 @@ def download_file(fl_tab: list) -> bool:
         with open(file_path, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):
                 f.write(chunk)
+    utils.log_event(f'Downloaded {flname}')
     return True
 
 
-def download_ssurgo(selected_states: [str, str] = []):
+def download_ssurgo(selected_states: [str, str] = []) -> None:
     """
     download ssurgo dbs for all or selected states
     If You need only specified states pass list with states codes
@@ -99,6 +104,9 @@ def download_ssurgo(selected_states: [str, str] = []):
         if len(fljs) == 0:
             break
         fls += fljs
+        if pcnt > 30:
+            utils.log_event('Error downloading ssurgo db list', ltype='ERROR')
+            return
 
     to_download = []
     if len(selected_states) > 0:
@@ -114,7 +122,7 @@ def download_ssurgo(selected_states: [str, str] = []):
             download_file(dw)
         except Exception:
             utils.log_event(f'Error downloading ssurgo for state {dw[0]}',
-                            ltype='error')
+                            ltype='ERROR')
 
 
 if __name__ == '__main__':
