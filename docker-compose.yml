@@ -14,8 +14,9 @@ services:
     volumes:
       - ./db_scripts/:/docker-entrypoint-initdb.d
       - ./db_data:/var/lib/postgresql/data
+      - ./download:/usr/src/app/download
     healthcheck:
-      test: pg_isready -U postgres -d postgres
+      test: pg_isready -U postgres -d soil_data
       interval: 5s
       timeout: 2s
       retries: 3
@@ -24,3 +25,23 @@ services:
     ports:
       - "5432:5432"
 
+  api:
+    container_name: soil-api
+    restart: always
+    build:
+      context: .
+      dockerfile: dockerfiles/api.dockerfile
+    command: "python sapi.py"
+    ports:
+      - "8000:5000"
+    depends_on:
+      - postgis
+    env_file:
+      - .env
+    volumes:
+      - ./:/usr/src/app
+
+# Need for http communication between multiple docker-composes on one host machine
+networks:
+  proxynet:
+    name: docker_network  

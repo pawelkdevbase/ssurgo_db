@@ -146,8 +146,8 @@ CREATE TABLE IF NOT EXISTS ssurgo.component (
     misoimgmtgrp VARCHAR (254),
     vasoimgtgrp VARCHAR (254),
     mukey VARCHAR (30) NOT NULL,
-    cokey VARCHAR (30) PRIMARY KEY,
-    FOREIGN KEY(mukey) REFERENCES ssurgo.mapunit(mukey) ON DELETE CASCADE);
+    cokey VARCHAR (30) PRIMARY KEY
+    );
     
 CREATE TABLE IF NOT EXISTS ssurgo.muaggatt (
     musym VARCHAR (6) NOT NULL,
@@ -189,8 +189,8 @@ CREATE TABLE IF NOT EXISTS ssurgo.muaggatt (
     forpehrtdcp VARCHAR (254),
     hydclprs VARCHAR (254),
     awmmfpwwta DOUBLE PRECISION,
-    mukey VARCHAR (30) PRIMARY KEY,
-    FOREIGN KEY (mukey) REFERENCES ssurgo.mapunit(mukey) ON DELETE CASCADE);
+    mukey VARCHAR (30) PRIMARY KEY
+    );
 
 CREATE TABLE IF NOT EXISTS ssurgo.mucropyld (
     cropname VARCHAR (254),
@@ -202,8 +202,8 @@ CREATE TABLE IF NOT EXISTS ssurgo.mucropyld (
     irryield_r DOUBLE PRECISION,
     irryield_h DOUBLE PRECISION,
     mukey VARCHAR (30) NOT NULL,
-    mucrpyldkey VARCHAR (30) PRIMARY KEY,
-    FOREIGN KEY(mukey) REFERENCES ssurgo.mapunit(mukey) ON DELETE CASCADE);
+    mucrpyldkey VARCHAR (30) PRIMARY KEY
+    );
 
 CREATE TABLE IF NOT EXISTS ssurgo.mupolygon (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -211,8 +211,9 @@ CREATE TABLE IF NOT EXISTS ssurgo.mupolygon (
     spatialver DOUBLE PRECISION,
     musym VARCHAR (6),
     mukey VARCHAR (30),
-    state VARCHAR (10),
-    FOREIGN KEY(mukey) REFERENCES ssurgo.mapunit(mukey) ON DELETE CASCADE);
+    state VARCHAR (10)
+    );
+ALTER TABLE ssurgo.mupolygon ADD COLUMN IF NOT EXISTS geometry geometry(MULTIPOLYGON, 4326);
 
 CREATE TABLE IF NOT EXISTS ssurgo.valu1 (
     aws0_5 DOUBLE PRECISION,
@@ -275,9 +276,57 @@ CREATE TABLE IF NOT EXISTS ssurgo.valu1 (
     mukey VARCHAR (30) PRIMARY Key
     );
 
-ALTER TABLE ssurgo.mupolygon ADD COLUMN IF NOT EXISTS geometry geometry(MULTIPOLYGON, 4326);
-
 CREATE TABLE IF NOT EXISTS ssurgo.importlog (
     timelog TIMESTAMP,
+    ltype VARCHAR (20),
     description VARCHAR (254)
     );
+
+CREATE TABLE IF NOT EXISTS ssurgo.aggreg (
+    mukey VARCHAR (30) PRIMARY Key,
+    muname VARCHAR (375),
+    nccpi3corn DOUBLE PRECISION,
+    nccpi3soy DOUBLE PRECISION,
+    nccpi3cot DOUBLE PRECISION,
+    nccpi3sg DOUBLE PRECISION,
+    nccpi3all DOUBLE PRECISION,
+    csr DOUBLE PRECISION,
+    di SMALLINT,
+    pi SMALLINT
+    );
+
+CREATE TABLE IF NOT EXISTS ssurgo.aggreg_ia (
+    mukey VARCHAR (30) PRIMARY Key,
+    csr2 SMALLINT
+    );
+
+CREATE VIEW ssurgo.poly_aggreg AS     
+    SELECT
+        mp.id,
+        mp.mukey,
+        mp.musym,
+        mp.geometry,
+        mp.state,
+        ag.muname,
+        ag.nccpi3corn, 
+        ag.nccpi3soy ,
+        ag.nccpi3cot,
+        ag.nccpi3sg,
+        ag.nccpi3all,
+        ag.csr,
+        ag.di,
+        ag.pi,
+        round((ag.nccpi3all/100)::numeric, 6) as soil_index_base,
+        agi.csr2
+    FROM 
+        ssurgo.mupolygon AS mp 
+        LEFT JOIN ssurgo.aggreg AS ag ON (mp.mukey = ag.mukey) 
+        LEFT JOIN ssurgo.aggreg_ia AS agi ON (mp.mukey=agi.mukey)
+        ;
+
+
+CREATE INDEX mupolygon_geom_idx ON ssurgo.mupolygon USING GIST (geometry);
+CREATE INDEX idx_agreg ON ssurgo.aggreg (mukey);
+CREATE INDEX idx_csr2 ON ssurgo.aggreg_ia (mukey);
+CREATE INDEX idx_mapunit ON ssurgo.mapunit (mukey);
+CREATE INDEX idx_comp ON ssurgo.component (mukey, cokey);

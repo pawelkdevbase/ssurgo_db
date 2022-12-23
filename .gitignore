@@ -1,8 +1,6 @@
 db_data/
+download/
 *.pyc
 *.vim
 .ropeproject/
 __pycache__/
-
-
-import_soils.py
