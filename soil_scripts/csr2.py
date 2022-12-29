@@ -248,7 +248,6 @@ def process_csr2(pth: str) -> pd.DataFrame:
                 df, pd.DataFrame({'mukey': mukey, 'csr2': val}, index=[0])
             ], ignore_index=True)
         except Exception:
-            print(mukey, 'duzy zonk')
             utils.log_event(
                 f'Error calculating CSR2 for mukey: {mukey}', ltype='ERROR'
             )
@@ -260,4 +259,5 @@ def process_csr2(pth: str) -> pd.DataFrame:
 
 
 if __name__ == '__main__':
+    # how to run this:
     process_csr2('/Users/pawel/freelance/ssurgo/gSSURGO_IA.gdb')

@@ -292,7 +292,8 @@ CREATE TABLE IF NOT EXISTS ssurgo.aggreg (
     nccpi3all DOUBLE PRECISION,
     csr DOUBLE PRECISION,
     di SMALLINT,
-    pi SMALLINT
+    pi SMALLINT,
+    cpi DOUBLE PRECISION
     );
 
 CREATE TABLE IF NOT EXISTS ssurgo.aggreg_ia (
@@ -317,7 +318,8 @@ CREATE VIEW ssurgo.poly_aggreg AS
         ag.di,
         ag.pi,
         round((ag.nccpi3all/100)::numeric, 6) as soil_index_base,
-        agi.csr2
+        agi.csr2,
+        ag.cpi
     FROM 
         ssurgo.mupolygon AS mp 
         LEFT JOIN ssurgo.aggreg AS ag ON (mp.mukey = ag.mukey) 

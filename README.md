@@ -93,6 +93,7 @@ and attributes:
 - soil_index_base
 - di
 - pi
+- cpi (weighted sum per mukey)
 - state
 
 
