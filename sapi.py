@@ -1,22 +1,21 @@
 from flask import Flask
-from flask import render_template, jsonify
-import psycopg2
+from flask import jsonify
+import pandas as pd
 import geopandas as gpd
 import json
 from shapely.wkt import loads
 from urllib.parse import unquote
 
-from shapely.geometry import box
-from soil_scripts import config, db
+from soil_scripts import db
 
 
 EMPTY = '{"type": "FeatureCollection", "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::3857" } }, "features": []}'
 
 
-def get_features_bbox(bounds: list=[]):
+def get_features_bbox(bounds: list = []):
     sql = 'select * from ssurgo.poly_aggreg where ' + \
         'ST_Intersects(geometry, ST_MakeEnvelope(' + \
-        ', '.join(map(str, bounds)) + f', 4326));'
+        ', '.join(map(str, bounds)) + ', 4326));'
 
     with db.sync_session() as session:
         eng = session.get_bind()
@@ -45,7 +44,6 @@ def get_bbox(xmin, ymin, xmax, ymax):
 @app.route("/get-features-poly/<poly>")
 def get_poly(poly):
     un = unquote(poly)
-    print(un)
     try:
         poly = loads(un)
     except Exception:
@@ -64,6 +62,43 @@ def get_poly(poly):
     gdf = gdf.to_crs(4326)
 
     js = gdf.to_json()
+    js = json.loads(js)
+    return jsonify(js)
+
+
+@app.route("/get-components-by-mukey/<mukeys>")
+def get_components(mukeys):
+    """
+    returns components descriptions as json for max 500 mukeys codes
+    """
+
+    mukeys = "'"
+    mukeys += "','".join(
+        [xx for xx in mukeys.split(',') if xx.isdigit()][:500]
+    )
+    mukeys += "'"
+    sql = '''
+    select
+        mukey,
+        cokey,
+        comppct_r,
+        compname,
+        slope_r,
+        cropprodindex
+    from
+        ssurgo.component
+    where mukey in
+   ''' + f"({mukeys});"
+
+    print(sql)
+    with db.sync_session() as session:
+        eng = session.get_bind()
+        try:
+            df = pd.read_sql_query(sql, con=eng)
+        except Exception:
+            df = pd.DataFrame()
+
+    js = df.to_json()
     js = json.loads(js)
     return jsonify(js)
 

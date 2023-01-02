@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS ssurgo.featdesc (
 
 CREATE TABLE IF NOT EXISTS ssurgo.mapunit (
     musym VARCHAR (6) NOT NULL,
-    muname VARCHAR (175),
+    muname VARCHAR (254),
     mukind VARCHAR (254),
     mustatus VARCHAR (254),
     muacres INTEGER,
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS ssurgo.component (
     
 CREATE TABLE IF NOT EXISTS ssurgo.muaggatt (
     musym VARCHAR (6) NOT NULL,
-    muname VARCHAR (175),
+    muname VARCHAR (254),
     mustatus VARCHAR (254),
     slopegraddcp DOUBLE PRECISION,
     slopegradwta DOUBLE PRECISION,
@@ -214,6 +214,14 @@ CREATE TABLE IF NOT EXISTS ssurgo.mupolygon (
     state VARCHAR (10)
     );
 ALTER TABLE ssurgo.mupolygon ADD COLUMN IF NOT EXISTS geometry geometry(MULTIPOLYGON, 4326);
+
+CREATE TABLE IF NOT EXISTS ssurgo.sapolygon (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    areasymbol VARCHAR (20),
+    spatialver DOUBLE PRECISION,
+    lkey VARCHAR (30)
+    );
+ALTER TABLE ssurgo.sapolygon ADD COLUMN IF NOT EXISTS geometry geometry(MULTIPOLYGON, 4326);
 
 CREATE TABLE IF NOT EXISTS ssurgo.valu1 (
     aws0_5 DOUBLE PRECISION,

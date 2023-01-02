@@ -12,6 +12,39 @@ from zipfile import ZipFile
 import shutil
 
 
+def load_sapolygon(dbf: str) -> None:
+    """Loads survey area polygons to db. This is important layer which need be
+    updated after every state import to omit duplicated mupolygons in ssurgo
+    database. Some states have duplicated survey areas
+    """
+    with db.sync_session() as session:
+        eng = session.get_bind()
+        askey = pd.read_sql_query(
+            'select areasymbol from ssurgo.sapolygon', con=eng
+        )
+    gdf = gpd.read_file(dbf, layer='sapolygon')
+    gdf = gdf[~gdf['AREASYMBOL'].isin(askey.areasymbol.values)]
+    del gdf['Shape_Area']
+    del gdf['Shape_Length']
+    # turn columns names to lower to match db headers
+    gdf.rename(columns={xx: xx.lower() for xx in gdf.columns},
+               inplace=True)
+    # promote all geometries to multi
+    gdf["geometry"] = [
+        MultiPolygon([feature]) if isinstance(feature, Polygon)
+        else feature for feature in gdf["geometry"]
+    ]
+    gdf = gdf.to_crs(epsg='4326')
+    try:
+        with db.sync_session() as session:
+            eng = session.get_bind()
+            gdf.to_postgis(
+                name='sapolygon', con=eng, schema='ssurgo', if_exists='append'
+            )
+    except Exception:
+        utils.log_event('Failed to load sapolygon features', 'ERROR')
+
+
 def load_mupolygon(dbf: str, state: str) -> None:
     """
     Loads polygons to db by geopandas, its a slower but with more control over
@@ -19,6 +52,13 @@ def load_mupolygon(dbf: str, state: str) -> None:
     """
     sl = 0  # slice
     utils.log_event(f'uploading mupolygon layer for state - {state}, [START]')
+    # get sourvey area keys
+    with db.sync_session() as session:
+        eng = session.get_bind()
+        askey = pd.read_sql_query(
+            'select areasymbol from ssurgo.sapolygon', con=eng
+        )
+    gdf = gpd.read_file(dbf, layer='sapolygon')
     while True:
         try:
             gdf = gpd.read_file(
@@ -31,8 +71,17 @@ def load_mupolygon(dbf: str, state: str) -> None:
                 ltype='ERROR'
             )
             continue
+
+        # this is the end
         if gdf.shape[0] == 0:
             break
+
+        # if all mupolygons are already loaded to db go to next slice
+        gdf = gdf[~gdf['AREASYMBOL'].isin(askey.areasymbol.values)]
+        if gdf.shape[0] == 0:
+            sl += 1000
+            continue
+
         gdf = gdf.to_crs(epsg='4326')
         # delete columns by ArcGIS
         del gdf['Shape_Area']
@@ -48,8 +97,8 @@ def load_mupolygon(dbf: str, state: str) -> None:
         gdf['state'] = state  # add state name to column
         # checking geometry is omitting here, check out ssurgo_stat, there is
         # procedure to check geoemtry duplicates for state database,
-        # NOTE: data from october 2022 have no overlapping and duplicates
-        # problems
+        # NOTE: data from november 2022 have no overlapping and duplicates
+        # problems in one geodatabase.
 
         try:
             with db.sync_session() as session:
@@ -86,9 +135,9 @@ def load_aggreg(dbf: str, state: str) -> None:
             os.path.join(mpth, 'data', 'All_Components_DI_PI_LUT.csv'),
             converters={'mukey': str}
         )
-        pidi = pidi.loc[:, ['mukey', 'Final_PI', 'Final_DI']]
-        pidi['piw'] = (pidi.comppct_r/100) * pidi.Final_PI
-        pidi['diw'] = (pidi.comppct_r/100) * pidi.Final_DI
+        pidi = pidi.loc[:, ['mukey', 'Final_PI', 'Final_DI', 'comppct_r']]
+        pidi.loc[:, 'piw'] = (pidi.comppct_r/100) * pidi.Final_PI
+        pidi.loc[:, 'diw'] = (pidi.comppct_r/100) * pidi.Final_DI
         pidi = pidi.groupby('mukey').agg({'piw': 'sum', 'diw': 'sum'})
         pidi = pidi.reset_index()
     else:  # no file - create dummy empty dataset
@@ -121,9 +170,13 @@ def load_aggreg(dbf: str, state: str) -> None:
         cpi = pd.DataFrame(columns=['mukey', 'cpi'])
         # calculate weighted value of cpi per mukey
         for mk, gr in sel.groupby('mukey'):
-            gr['cpi'] = (gr.comppct_r/100) * gr.cropprodindex
-            cpi = cpi.append({'mukey': mk, 'cpi': gr.cpi.sum()},
-                             ignore_index=True)
+            gr.loc[:, 'cpi'] = (gr.comppct_r/100) * gr.cropprodindex
+            cpi = pd.concat([
+                cpi,
+                pd.DataFrame({'mukey': mk, 'cpi': gr.cpi.sum()}, index=[0])
+            ],
+                ignore_index=True
+            )
         df = df.merge(cpi, on='mukey', how='left')
 
     with db.sync_session() as session:
@@ -185,6 +238,7 @@ def load_complete_ssurgo() -> None:
             with ZipFile(dbz, 'r') as zf:
                 zf.extractall(config.DOWNLOAD_FOLDER)
         load_mupolygon(dbf, st)
+        load_sapolygon(dbf)
         load_aggreg(dbf, st)
         load_tables(dbf, st)
         if st == 'IA':
@@ -203,36 +257,39 @@ def load_complete_ssurgo() -> None:
 if __name__ == '__main__':
     load_complete_ssurgo()
 
-    # # this is example how to deploy only few states, if You need entire
-    # # dataset simply run load_complete_ssurgo() - all USA will be processed
-    # if not os.path.isdir(config.DOWNLOAD_FOLDER):
-        # os.mkdir(config.DOWNLOAD_FOLDER)
-    # states = [
-        # # 'MO', 'MT', 'ID', 'WA',
-        # # 'MH', 'AS',
-        # # 'DC', 'MP', 'FM', 'PW', 'RI', 'DE', 'CT', 'NH', 'NJ', 'VT',
-        # #'MA', 'MD', 'ME', #'WV', 'AZ', 'UT', 'SC', 'LA', 'AR', 'AK', 'NV',
-        # 'IA', 'DE'
-    # ]
-    # download_ssurgo(states)
-    # for st in states:
-        # dbz = os.path.join(config.DOWNLOAD_FOLDER, f'gSSURGO_{st}.zip')
-        # dbf = os.path.join(config.DOWNLOAD_FOLDER, f'gSSURGO_{st}.gdb')
-        # if not os.path.isdir(dbf):
-            # with ZipFile(dbz, 'r') as zf:
-                # zf.extractall(config.DOWNLOAD_FOLDER)
-        # # load_mupolygon(dbf, st)
-        # load_aggreg(dbf, st)
-        # load_tables(dbf, st)
-        # if st == 'IA':
-            # df = process_csr2(dbf)
-            # with db.sync_session() as session:
-                # eng = session.get_bind()
-                # df.to_sql(
-                    # name='aggreg_ia', con=eng,
-                    # schema='ssurgo', if_exists='append', chunksize=400,
-                    # index=False
-                # )
-
-        # shutil.rmtree(dbf)  # delete gdb
-        # # os.remove(dbz)  # delete zip
+#    # this is example how to deploy only few states, if You need entire
+#    # dataset simply run load_complete_ssurgo() - all USA will be processed
+#    if not os.path.isdir(config.DOWNLOAD_FOLDER):
+#        os.mkdir(config.DOWNLOAD_FOLDER)
+#    states = [
+#        # 'MO', 'MT', 'ID', 'WA',
+#        'ND', 'SD', 'ID'
+#        # 'MH', 'AS',
+#        # 'DC', 'MP', 'FM', 'PW', 'RI', 'DE', 'CT', 'NH', 'NJ', 'VT',
+#        # 'MA', 'MD', 'ME', #'WV', 'AZ', 'UT', 'SC', 'LA', 'AR', 'AK', 'NV',
+#        # 'IA', 'DE'
+#        # 'ID', 'MT', 'WY', 'OR', 'WA'
+#    ]
+#    download_ssurgo(states)
+#    for st in states:
+#        dbz = os.path.join(config.DOWNLOAD_FOLDER, f'gSSURGO_{st}.zip')
+#        dbf = os.path.join(config.DOWNLOAD_FOLDER, f'gSSURGO_{st}.gdb')
+#        if not os.path.isdir(dbf):
+#            with ZipFile(dbz, 'r') as zf:
+#                zf.extractall(config.DOWNLOAD_FOLDER)
+#        load_mupolygon(dbf, st)
+#        load_sapolygon(dbf)
+#        load_aggreg(dbf, st)
+#        load_tables(dbf, st)
+#        if st == 'IA':
+#            df = process_csr2(dbf)
+#            with db.sync_session() as session:
+#                eng = session.get_bind()
+#                df.to_sql(
+#                    name='aggreg_ia', con=eng,
+#                    schema='ssurgo', if_exists='append', chunksize=400,
+#                    index=False
+#                )
+#
+#        shutil.rmtree(dbf)  # delete gdb
+#        # os.remove(dbz)  # delete zip
