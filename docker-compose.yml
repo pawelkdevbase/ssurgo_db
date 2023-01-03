@@ -31,15 +31,12 @@ services:
     build:
       context: .
       dockerfile: dockerfiles/api.dockerfile
-    command: "python sapi.py"
     ports:
-      - "8000:5000"
+      - "8000:80"
     depends_on:
       - postgis
     env_file:
       - .env
-    volumes:
-      - ./:/usr/src/app
 
 # Need for http communication between multiple docker-composes on one host machine
 networks:

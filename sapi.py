@@ -66,15 +66,15 @@ def get_poly(poly):
     return jsonify(js)
 
 
-@app.route("/get-components-by-mukey/<mukeys>")
-def get_components(mukeys):
+@app.route("/get-components-by-mukey/<muks>")
+def get_components(muks):
     """
     returns components descriptions as json for max 500 mukeys codes
     """
 
     mukeys = "'"
     mukeys += "','".join(
-        [xx for xx in mukeys.split(',') if xx.isdigit()][:500]
+        [xx for xx in muks.split(',') if xx.isdigit()][:500]
     )
     mukeys += "'"
     sql = '''
@@ -90,7 +90,6 @@ def get_components(mukeys):
     where mukey in
    ''' + f"({mukeys});"
 
-    print(sql)
     with db.sync_session() as session:
         eng = session.get_bind()
         try:
