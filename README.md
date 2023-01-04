@@ -13,7 +13,7 @@ docker-compose up -d --build
 ```
 Database with table will be created, after that You can import entire SSURGO database by running this in command:
 ```shell
-docker exec soil-api python import_soil.py
+docker exec soil-api python import_soils.py
 ```
 
 ## Run without docker

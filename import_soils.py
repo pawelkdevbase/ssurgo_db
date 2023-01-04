@@ -59,6 +59,7 @@ def load_mupolygon(dbf: str, state: str) -> None:
             'select areasymbol from ssurgo.sapolygon', con=eng
         )
     gdf = gpd.read_file(dbf, layer='sapolygon')
+    errors = 0
     while True:
         try:
             gdf = gpd.read_file(
@@ -70,6 +71,15 @@ def load_mupolygon(dbf: str, state: str) -> None:
                 f'for state: {state}',
                 ltype='ERROR'
             )
+            sl += 1000
+            errors += 1
+            if errors == 30:
+                utils.log_event(
+                    'Encounter 30 errors during loading mupolygon layer' +
+                    f' - please check this db: {state}',
+                    'ERROR'
+                )
+                break
             continue
 
         # this is the end
@@ -257,39 +267,38 @@ def load_complete_ssurgo() -> None:
 if __name__ == '__main__':
     load_complete_ssurgo()
 
-#    # this is example how to deploy only few states, if You need entire
-#    # dataset simply run load_complete_ssurgo() - all USA will be processed
-#    if not os.path.isdir(config.DOWNLOAD_FOLDER):
-#        os.mkdir(config.DOWNLOAD_FOLDER)
-#    states = [
-#        # 'MO', 'MT', 'ID', 'WA',
-#        'ND', 'SD', 'ID'
-#        # 'MH', 'AS',
-#        # 'DC', 'MP', 'FM', 'PW', 'RI', 'DE', 'CT', 'NH', 'NJ', 'VT',
-#        # 'MA', 'MD', 'ME', #'WV', 'AZ', 'UT', 'SC', 'LA', 'AR', 'AK', 'NV',
-#        # 'IA', 'DE'
-#        # 'ID', 'MT', 'WY', 'OR', 'WA'
-#    ]
-#    download_ssurgo(states)
-#    for st in states:
-#        dbz = os.path.join(config.DOWNLOAD_FOLDER, f'gSSURGO_{st}.zip')
-#        dbf = os.path.join(config.DOWNLOAD_FOLDER, f'gSSURGO_{st}.gdb')
-#        if not os.path.isdir(dbf):
-#            with ZipFile(dbz, 'r') as zf:
-#                zf.extractall(config.DOWNLOAD_FOLDER)
-#        load_mupolygon(dbf, st)
-#        load_sapolygon(dbf)
-#        load_aggreg(dbf, st)
-#        load_tables(dbf, st)
-#        if st == 'IA':
-#            df = process_csr2(dbf)
-#            with db.sync_session() as session:
-#                eng = session.get_bind()
-#                df.to_sql(
-#                    name='aggreg_ia', con=eng,
-#                    schema='ssurgo', if_exists='append', chunksize=400,
-#                    index=False
-#                )
+#   # this is example how to deploy only few states, if You need entire
+#   # dataset simply run load_complete_ssurgo() - all USA will be processed
+#   if not os.path.isdir(config.DOWNLOAD_FOLDER):
+#       os.mkdir(config.DOWNLOAD_FOLDER)
+#   states = [
+#       # 'MO', 'MT', 'ID', 'WA',
+#       # 'MH', 'AS',
+#       # 'DC', 'MP', 'FM', 'PW', 'RI', 'DE', 'CT', 'NH', 'NJ', 'VT',
+#       # 'MA', 'MD', 'ME', #'WV', 'AZ', 'UT', 'SC', 'LA', 'AR', 'AK', 'NV',
+#       # 'IA', 'DE'
+#       # 'ID', 'MT', 'WY', 'OR', 'WA'
+#   ]
+#   download_ssurgo(states)
+#   for st in states:
+#       dbz = os.path.join(config.DOWNLOAD_FOLDER, f'gSSURGO_{st}.zip')
+#       dbf = os.path.join(config.DOWNLOAD_FOLDER, f'gSSURGO_{st}.gdb')
+#       if not os.path.isdir(dbf):
+#           with ZipFile(dbz, 'r') as zf:
+#               zf.extractall(config.DOWNLOAD_FOLDER)
+#       load_mupolygon(dbf, st)
+#       load_sapolygon(dbf)
+#       load_aggreg(dbf, st)
+#       load_tables(dbf, st)
+#       if st == 'IA':
+#           df = process_csr2(dbf)
+#           with db.sync_session() as session:
+#               eng = session.get_bind()
+#               df.to_sql(
+#                   name='aggreg_ia', con=eng,
+#                   schema='ssurgo', if_exists='append', chunksize=400,
+#                   index=False
+#               )
 #
-#        shutil.rmtree(dbf)  # delete gdb
-#        # os.remove(dbz)  # delete zip
+#       shutil.rmtree(dbf)  # delete gdb
+#       # os.remove(dbz)  # delete zip

@@ -37,6 +37,8 @@ services:
       - postgis
     env_file:
       - .env
+    volumes:
+      - ./download:/usr/src/app/download
 
 # Need for http communication between multiple docker-composes on one host machine
 networks:
