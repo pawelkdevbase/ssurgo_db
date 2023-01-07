@@ -1,4 +1,3 @@
-
 import os
 import pandas as pd
 import geopandas as gpd
@@ -6,7 +5,8 @@ from shapely.geometry import MultiPolygon, Polygon
 
 from soil_scripts import config, db, utils
 from soil_scripts.downloader import download_ssurgo
-from soil_scripts.csr2 import process_csr2
+from soil_scripts.csr2_scrap import process_csr2
+from soil_scripts.pi_calc import process_pi
 
 from zipfile import ZipFile
 import shutil
@@ -137,22 +137,23 @@ def load_aggreg(dbf: str, state: str) -> None:
     state: state shortcut ('AI')
     """
     # check if file with PI and DI exists, if so load it or create dummy df
+    # Max component shoul be used for calculation - as:
+
     mpth = os.path.dirname(__file__)
     if os.path.isfile(
-        os.path.join(mpth, 'data', 'All_Components_DI_PI_LUT.csv')
+        os.path.join(mpth, 'data', 'Max_Components_DI_PI_LUT.csv')
     ):
         pidi = pd.read_csv(
-            os.path.join(mpth, 'data', 'All_Components_DI_PI_LUT.csv'),
-            converters={'mukey': str}
+            os.path.join(mpth, 'data', 'Max_Components_DI_PI_LUT.csv'),
+            converters={'mukey': str, 'Final_PI': int, 'Final_DI': int}
         )
-        pidi = pidi.loc[:, ['mukey', 'Final_PI', 'Final_DI', 'comppct_r']]
-        pidi.loc[:, 'piw'] = (pidi.comppct_r/100) * pidi.Final_PI
-        pidi.loc[:, 'diw'] = (pidi.comppct_r/100) * pidi.Final_DI
-        pidi = pidi.groupby('mukey').agg({'piw': 'sum', 'diw': 'sum'})
-        pidi = pidi.reset_index()
+        pidi = pidi.loc[:, ['mukey', 'Final_PI', 'Final_DI']]
     else:  # no file - create dummy empty dataset
-        pidi = pd.DataFrame(columns=['mukey', 'piw', 'diw', ])
-    pidi.rename(columns={'piw': 'pi', 'diw': 'di'}, inplace=True)
+        print('zonk')
+        pidi = pd.DataFrame(columns=['mukey', 'Final_DI', 'Final_PI', ])
+    pidi.rename(
+        columns={'Final_PI': 'pi_forest', 'Final_DI': 'di'}, inplace=True
+    )
 
     with db.sync_session() as session:
         eng = session.get_bind()
@@ -260,6 +261,17 @@ def load_complete_ssurgo() -> None:
                     schema='ssurgo', if_exists='append', chunksize=400,
                     index=False
                 )
+                utils.log_event(f'uploaded csr2 table - {st}')
+        if st in ['IL', 'ND', 'SD']:
+            df = process_pi(dbf)
+            with db.sync_session() as session:
+                eng = session.get_bind()
+                df.to_sql(
+                    name='aggreg_pi', con=eng,
+                    schema='ssurgo', if_exists='append', chunksize=400,
+                    index=False
+                )
+                utils.log_event(f'uploaded pi values to table - {st}')
         shutil.rmtree(dbf)  # delete gdb
         os.remove(dbz)  # delete zip
 
@@ -268,37 +280,47 @@ if __name__ == '__main__':
     load_complete_ssurgo()
 
 #   # this is example how to deploy only few states, if You need entire
-#   # dataset simply run load_complete_ssurgo() - all USA will be processed
-#   if not os.path.isdir(config.DOWNLOAD_FOLDER):
-#       os.mkdir(config.DOWNLOAD_FOLDER)
-#   states = [
-#       # 'MO', 'MT', 'ID', 'WA',
-#       # 'MH', 'AS',
-#       # 'DC', 'MP', 'FM', 'PW', 'RI', 'DE', 'CT', 'NH', 'NJ', 'VT',
-#       # 'MA', 'MD', 'ME', #'WV', 'AZ', 'UT', 'SC', 'LA', 'AR', 'AK', 'NV',
-#       # 'IA', 'DE'
-#       # 'ID', 'MT', 'WY', 'OR', 'WA'
-#   ]
-#   download_ssurgo(states)
-#   for st in states:
-#       dbz = os.path.join(config.DOWNLOAD_FOLDER, f'gSSURGO_{st}.zip')
-#       dbf = os.path.join(config.DOWNLOAD_FOLDER, f'gSSURGO_{st}.gdb')
-#       if not os.path.isdir(dbf):
-#           with ZipFile(dbz, 'r') as zf:
-#               zf.extractall(config.DOWNLOAD_FOLDER)
-#       load_mupolygon(dbf, st)
-#       load_sapolygon(dbf)
-#       load_aggreg(dbf, st)
-#       load_tables(dbf, st)
-#       if st == 'IA':
-#           df = process_csr2(dbf)
-#           with db.sync_session() as session:
-#               eng = session.get_bind()
-#               df.to_sql(
-#                   name='aggreg_ia', con=eng,
-#                   schema='ssurgo', if_exists='append', chunksize=400,
-#                   index=False
-#               )
+#    # dataset simply run load_complete_ssurgo() - all USA will be processed
+#    if not os.path.isdir(config.DOWNLOAD_FOLDER):
+#        os.mkdir(config.DOWNLOAD_FOLDER)
+#    states = [
+#        # 'MO', 'MT', 'ID', 'WA',
+#        # 'DE', 'VT'
+#        # 'DC', 'MP', 'FM', 'PW', 'RI', 'DE', 'CT', 'NH', 'NJ', 'VT',
+#        # 'MA', 'MD', 'ME', #'WV', 'AZ', 'UT', 'SC', 'LA', 'AR', 'AK', 'NV',
+#        'ID', 'WY',
+#        'IA', 'IL', 'ND', 'SD',
+#        # 'ID', 'MT', 'WY', 'OR', 'WA'
+#    ]
+#    download_ssurgo(states)
+#    for st in states:
+#        dbz = os.path.join(config.DOWNLOAD_FOLDER, f'gSSURGO_{st}.zip')
+#        dbf = os.path.join(config.DOWNLOAD_FOLDER, f'gSSURGO_{st}.gdb')
+#        if not os.path.isdir(dbf):
+#            with ZipFile(dbz, 'r') as zf:
+#                zf.extractall(config.DOWNLOAD_FOLDER)
+#        load_mupolygon(dbf, st)
+#        load_sapolygon(dbf)
+#        load_aggreg(dbf, st)
+#        load_tables(dbf, st)
+#        if st == 'IA':
+#            df = process_csr2(dbf)
+#            with db.sync_session() as session:
+#                eng = session.get_bind()
+#                df.to_sql(
+#                    name='aggreg_ia', con=eng,
+#                    schema='ssurgo', if_exists='append', chunksize=400,
+#                    index=False
+#                )
+#        if st in ['IL', 'ND', 'SD']:
+#            df = process_pi(dbf)
+#            with db.sync_session() as session:
+#                eng = session.get_bind()
+#                df.to_sql(
+#                    name='aggreg_pi', con=eng,
+#                    schema='ssurgo', if_exists='append', chunksize=400,
+#                    index=False
+#                )
 #
-#       shutil.rmtree(dbf)  # delete gdb
-#       # os.remove(dbz)  # delete zip
+#        shutil.rmtree(dbf)  # delete gdb
+#        # os.remove(dbz)  # delete zip

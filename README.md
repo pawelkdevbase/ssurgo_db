@@ -92,6 +92,7 @@ and attributes:
 - nccpi3corn
 - soil_index_base
 - di
+- pi_forest
 - pi
 - cpi (weighted sum by percent of all components for mukey)
 - state

@@ -300,13 +300,18 @@ CREATE TABLE IF NOT EXISTS ssurgo.aggreg (
     nccpi3all DOUBLE PRECISION,
     csr DOUBLE PRECISION,
     di SMALLINT,
-    pi SMALLINT,
+    pi_forest SMALLINT,
     cpi DOUBLE PRECISION
     );
 
 CREATE TABLE IF NOT EXISTS ssurgo.aggreg_ia (
     mukey VARCHAR (30) PRIMARY Key,
     csr2 SMALLINT
+    );
+
+CREATE TABLE IF NOT EXISTS ssurgo.aggreg_pi (
+    mukey VARCHAR (30) PRIMARY Key,
+    pi SMALLINT
     );
 
 CREATE VIEW ssurgo.poly_aggreg AS     
@@ -324,7 +329,8 @@ CREATE VIEW ssurgo.poly_aggreg AS
         ag.nccpi3all,
         ag.csr,
         ag.di,
-        ag.pi,
+        ag.pi_forest,
+        agpi.pi,
         round((ag.nccpi3all/100)::numeric, 6) as soil_index_base,
         agi.csr2,
         ag.cpi
@@ -332,11 +338,13 @@ CREATE VIEW ssurgo.poly_aggreg AS
         ssurgo.mupolygon AS mp 
         LEFT JOIN ssurgo.aggreg AS ag ON (mp.mukey = ag.mukey) 
         LEFT JOIN ssurgo.aggreg_ia AS agi ON (mp.mukey=agi.mukey)
+        LEFT JOIN ssurgo.aggreg_pi AS agpi ON (mp.mukey=agi.mukey)
         ;
 
 
 CREATE INDEX mupolygon_geom_idx ON ssurgo.mupolygon USING GIST (geometry);
 CREATE INDEX idx_agreg ON ssurgo.aggreg (mukey);
 CREATE INDEX idx_csr2 ON ssurgo.aggreg_ia (mukey);
+CREATE INDEX idx_pi ON ssurgo.aggreg_pi (mukey);
 CREATE INDEX idx_mapunit ON ssurgo.mapunit (mukey);
 CREATE INDEX idx_comp ON ssurgo.component (mukey, cokey);

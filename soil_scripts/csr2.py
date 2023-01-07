@@ -259,5 +259,8 @@ def process_csr2(pth: str) -> pd.DataFrame:
 
 
 if __name__ == '__main__':
+    # This file is not used in process but stays in repo if in the future there
+    # will be need to implement entire procedure to calculate CSR2 values
+
     # how to run this:
     process_csr2('/Users/pawel/freelance/ssurgo/gSSURGO_IA.gdb')
