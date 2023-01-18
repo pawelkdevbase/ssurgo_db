@@ -262,7 +262,7 @@ def load_complete_ssurgo() -> None:
                     index=False
                 )
                 utils.log_event(f'uploaded csr2 table - {st}')
-        if st in ['IL', 'ND', 'SD']:
+        if st == 'IL':
             df = process_pi(dbf)
             with db.sync_session() as session:
                 eng = session.get_bind()
@@ -312,7 +312,7 @@ if __name__ == '__main__':
 #                    schema='ssurgo', if_exists='append', chunksize=400,
 #                    index=False
 #                )
-#        if st in ['IL', 'ND', 'SD']:
+#        if st == 'IL':
 #            df = process_pi(dbf)
 #            with db.sync_session() as session:
 #                eng = session.get_bind()
